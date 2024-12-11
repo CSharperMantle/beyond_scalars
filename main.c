@@ -38,7 +38,6 @@
 #endif
 
 static uint8_t XOR_TABLE[256][256] = {0};
-static uint8_t NOT_TABLE[256] = {0};
 
 INITIALIZER(init_make_table) {
     for (size_t i = 0; i < 256; i++) {
@@ -46,23 +45,12 @@ INITIALIZER(init_make_table) {
             XOR_TABLE[i][j] = (uint8_t)i ^ (uint8_t)j;
         }
     }
-    for (size_t i = 0; i < 256; i++) {
-        NOT_TABLE[i] = ~(uint8_t)i;
-    }
 }
 
 static uint32_t bit_binop_u32(uint32_t a, uint32_t b, const uint8_t table[256][256]) {
     uint32_t v = 0;
     for (size_t i = 0; i < sizeof(uint32_t); i++) {
         v |= table[(a >> (i * 8)) & 0xff][(b >> (i * 8)) & 0xff] << (i * 8);
-    }
-    return v;
-}
-
-static uint32_t bit_unop_u32(uint32_t a, const uint8_t table[256]) {
-    uint32_t v = 0;
-    for (size_t i = 0; i < sizeof(uint32_t); i++) {
-        v |= table[(a >> (i * 8)) & 0xff] << (i * 8);
     }
     return v;
 }
