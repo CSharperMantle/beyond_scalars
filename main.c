@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <Windows.h>
 #include <immintrin.h>
 
 #pragma warning(push)
@@ -41,6 +40,17 @@
 static uint8_t XOR_TABLE[256][256] = {0};
 static uint8_t NOT_TABLE[256] = {0};
 
+INITIALIZER(init_make_table) {
+    for (size_t i = 0; i < 256; i++) {
+        for (size_t j = 0; j < 256; j++) {
+            XOR_TABLE[i][j] = (uint8_t)i ^ (uint8_t)j;
+        }
+    }
+    for (size_t i = 0; i < 256; i++) {
+        NOT_TABLE[i] = ~(uint8_t)i;
+    }
+}
+
 static uint32_t bit_binop_u32(uint32_t a, uint32_t b, const uint8_t table[256][256]) {
     uint32_t v = 0;
     for (size_t i = 0; i < sizeof(uint32_t); i++) {
@@ -55,14 +65,6 @@ static uint32_t bit_unop_u32(uint32_t a, const uint8_t table[256]) {
         v |= table[(a >> (i * 8)) & 0xff] << (i * 8);
     }
     return v;
-}
-
-static uint32_t crc32(const uint8_t *message, size_t len) {
-    uint32_t crc = 0;
-    for (size_t i = 0; i < len; i++) {
-        crc = _mm_crc32_u8(crc, message[i]);
-    }
-    return crc;
 }
 
 static __declspec(noinline) void xtea_enc_256b(const uint32_t v[8], const uint32_t k[4], uint32_t out[8], size_t n_rounds) {
@@ -121,16 +123,14 @@ static __declspec(noinline) void xtea_ctr_enc(const uint32_t *msg,
     assert(len % (8 * sizeof(uint32_t)) == 0);
 
     for (uint64_t i = 0; i < len / (8 * sizeof(uint32_t)); i++) {
-        uint32_t xtea_input[8], xtea_output[8];
+        uint64_t xtea_input[4];
+        uint32_t xtea_output[8];
         for (size_t j = 0; j < 4; j++) {
-            const uint64_t crc32_input = _byteswap_uint64(nonce + i + j);
-            const uint32_t crc_val = crc32((const uint8_t *)&crc32_input, sizeof(crc32_input));
-            xtea_input[2 * j] = crc_val;
-            xtea_input[2 * j + 1] = bit_unop_u32(crc_val, NOT_TABLE);
+            xtea_input[j] = nonce + i * 4 + j;
         }
         xtea_enc_256b(xtea_input, key, xtea_output, n_rounds);
         for (size_t j = 0; j < 8; j++) {
-            out[8 * i + j] = bit_binop_u32(out[8 * i + j], xtea_output[j], XOR_TABLE);
+            out[8 * i + j] = bit_binop_u32(msg[8 * i + j], xtea_output[j], XOR_TABLE);
         }
     }
 }
@@ -140,7 +140,7 @@ static const uint8_t KEY[4][4] = {"hgam", "e-20", "25@v", "idar"};
 // hgame{X86_SIMD_1nstruct1on5_4r3_awes0m3}
 
 static const uint8_t TARGET[32] = {
-    0x7f, 0x79, 0x6e, 0xa4, 0x01, 0xd9, 0xb2, 0x53, 0xb3, 0x33, 0x4e, 0xaa, 0x5d, 0xf0, 0xfc, 0x58, 0x1a, 0x5b, 0xb0, 0xb2, 0x1a, 0x82, 0x9f, 0x10, 0x06, 0x84, 0x73, 0x63, 0x53, 0xed, 0x2c, 0x5d
+    0x79, 0x95, 0xdd, 0x1a, 0xde, 0x0d, 0x85, 0xaa, 0x52, 0xf2, 0xe4, 0x5f, 0xdf, 0x0f, 0x45, 0x01, 0xe0, 0xf1, 0x83, 0xa7, 0x56, 0x7e, 0xe7, 0xec, 0x52, 0x52, 0xd7, 0x8a, 0x82, 0x09, 0xc3, 0x2b
 };
 
 int main(void) {
@@ -163,17 +163,6 @@ int main(void) {
     }
 
     return 0;
-}
-
-INITIALIZER(init_make_table) {
-    for (size_t i = 0; i < 256; i++) {
-        for (size_t j = 0; j < 256; j++) {
-            XOR_TABLE[i][j] = (uint8_t)i ^ (uint8_t)j;
-        }
-    }
-    for (size_t i = 0; i < 256; i++) {
-        NOT_TABLE[i] = ~(uint8_t)i;
-    }
 }
 
 #pragma warning(pop)
